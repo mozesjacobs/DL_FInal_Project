@@ -1,0 +1,6 @@
+torch
+gym
+torchvision
+cma
+tqdm
+gym[box2d]
