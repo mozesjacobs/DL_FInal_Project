@@ -10,4 +10,4 @@ class Controller(nn.Module):
 
     def forward(self, *inputs):
         cat_in = torch.cat(inputs, dim=1)
-        return self.fc(cat_in)
+        return nn.Tanh()(self.fc(cat_in))
