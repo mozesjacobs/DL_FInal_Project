@@ -33,11 +33,10 @@ if __name__ == "__main__":
     n_samples = 4
     target_return = 950
     disp = True
-    controller = Controller(LSIZE, RSIZE, ASIZE)
-    parameters = controller.parameters()
+    controller_weights_path = "ctrl/ctrl.pt"
     vae_weights_path = "weights/vae_original.pt"
     mdrnn_weights_path = "weights/mdrnn.pt"
-    rg = RolloutGenerator("weights/vae_original.pt", "weights/mdrnn.pt", device, time_limit)
+    rg = RolloutGenerator(vae_weights_path, mdrnn_weights_path, device, time_limit)
     p_queue = deque()
     r_queue = deque()
     
@@ -52,33 +51,30 @@ if __name__ == "__main__":
         index_min = np.argmin(results)
         best_guess = solutions[index_min]
         restimates = []
-        
+        print(f"Best result: {results[index_min]}")
         for s_id in range(rollouts):
-            p_queue.append((s_id, best_guess))
-        
-        while len(p_queue) != 0:
-            id, best_guess = p_queue.popleft()
-            r_queue.append((id, rg.rollout(best_guess)))
-        
+            r_queue.append(rg.rollout(best_guess))
+        print(r_queue)
         print("Evaluating...")
         for _ in tqdm(range(rollouts)):
-            restimates.append(r_queue.popleft()[1])
+            restimates.append(r_queue.popleft())
         
         return best_guess, np.mean(restimates), np.std(restimates)
     
-    if not exists("ctrl/ctrl.pt") or not exists(obj_file_name):
+    controller = Controller(LSIZE, RSIZE, ASIZE)
+    if not exists(controller_weights_path) or not exists(obj_file_name):
         epoch = 0
         log_step = 3
         parameters = controller.parameters()
-        es = cma.CMAEvolutionStrategy(flatten_parameters(parameters), 0.1,
+        es = cma.CMAEvolutionStrategy(flatten_parameters(parameters), 2,
                                   {'popsize': pop_size})
         cur_best = None
         end = log_step
     else:
-        state = torch.load("ctrl/ctrl.pt")
+        state = torch.load(controller_weights_path)
         epoch = state['epoch'] + 1
         cur_best = - state['reward']
-        controller.load_state_dict(state['state_dict'])
+        print("Loading ES object with pickle")
         s = open(obj_file_name, 'rb').read()
         es = pickle.loads(s)
         log_step = 3
@@ -102,6 +98,8 @@ if __name__ == "__main__":
           id, sol = p_queue.popleft()
           r_queue.append((id, rg.rollout(sol)))
         print(f"Filled up r_queue of size {len(r_queue)}")
+        print(f"Results Queue: {r_queue}")
+        print(f"Best result in r_queue {-min([i[1] for i in r_queue])}")
         # retrieve results
         if disp:
             pbar = tqdm(total=pop_size * n_samples)
@@ -130,14 +128,14 @@ if __name__ == "__main__":
                     {'epoch': epoch,
                      'reward': - cur_best,
                      'state_dict': controller.state_dict()},
-                    "ctrl/ctrl.pt")
+                    controller_weights_path)
             else:
-                state = torch.load("ctrl/ctrl.pt")
+                state = torch.load(controller_weights_path)
                 torch.save(
                     { 'epoch': epoch,
                       'reward': state['reward'],
-                      'state_dict': state['state_dict']}, "ctrl/ctrl.pt")
-            
+                      'state_dict': state['state_dict']}, controller_weights_path)
+            print("Saving ES object with pickle")
             s = es.pickle_dumps()
             open(obj_file_name, 'wb').write(s)
             if - best > target_return:
