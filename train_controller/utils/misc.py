@@ -7,13 +7,14 @@ import numpy as np
 from models import MDRNNCell, VAE, Controller
 import gym
 import gym.envs.box2d
+from PIL import Image
 
 # A bit dirty: manually change size of car racing env
 gym.envs.box2d.car_racing.STATE_W, gym.envs.box2d.car_racing.STATE_H = 64, 64
 
 # Hardcoded for now
 ASIZE, LSIZE, RSIZE, RED_SIZE, SIZE =\
-    3, 32, 64, 64, 64
+    3, 32, 256, 64, 64
 
 # Same
 transform = transforms.Compose([
@@ -154,6 +155,9 @@ class RolloutGenerator(object):
         cumulative = 0
         i = 0
         while True:
+            obs = obs[0:56]
+            obs = Image.fromarray(obs, "RGB").resize((64, 64))
+            obs = np.array(obs)
             obs = transform(obs).unsqueeze(0).to(self.device)
             action, hidden = self.get_action_and_transition(obs, hidden)
             obs, reward, done, _ = self.env.step(action)
